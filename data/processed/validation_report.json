@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "chapters": 17,
+    "sections": 24,
+    "articles": 220,
+    "clauses": 639,
+    "points": 265,
+    "preamble_lines": 8,
+    "alnum_chars_clean_text": 143688,
+    "alnum_chars_json": 143688
+  },
+  "errors": [],
+  "warnings": [],
+  "ok": true
+}
