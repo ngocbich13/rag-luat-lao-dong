@@ -93,29 +93,52 @@ def load_chunks(path: str | Path = CHUNKS_FILE) -> list[dict]:
 VI_STOPWORDS = {
     "của", "và", "các", "có", "được", "trong", "cho", "theo", "tại",
     "với", "là", "về", "hoặc", "này", "khi", "đến", "từ", "do", "để",
-    "như", "thì", "mà", "bị", "vào", "ra", "trên", "dưới",
+    "như", "thì", "mà", "bị", "vào", "ra", "trên", "dưới", "ai", "gì",
+    "nào", "sao", "thế", "nhiêu", "bao",
 }
 
-RE_WORD_TOKEN = re.compile(r"[0-9a-zA-ZÀ-ỹ]+")
+# Các từ ghép pháp lý quan trọng mà nếu tách rời chữ "lương" hay "nghỉ" sẽ gây bắt nhầm điều luật
+# Ví dụ: "lương hưu" khác hoàn toàn với "tiền lương / trả lương" (Điều 94).
+COMPOUND_REPLACEMENTS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\blương\s+hưu\b", re.IGNORECASE), "lương_hưu hưu_trí"),
+    (re.compile(r"\bnghỉ\s+hưu\b", re.IGNORECASE), "nghỉ_hưu hưu_trí"),
+]
+
+RE_WORD_TOKEN = re.compile(r"[0-9a-zA-ZÀ-ỹ_]+")
 
 
 def tokenize_vi(text: str, remove_stopwords: bool = True) -> list[str]:
     """
     Chuyển văn bản tiếng Việt về chữ thường, tách thành danh sách các từ/số.
-    Giữ lại cả các con số (như '36', '2019', '12') để tìm chính xác số Điều/Khoản/tháng.
-    Thêm cả cụm 2 từ liền kề (bigrams) để giữ nghĩa từ ghép tiếng Việt (ví dụ: 'thử_việc').
+    - Bảo toàn các từ ghép đặc biệt như 'lương_hưu', 'nghỉ_hưu' để chữ 'lương' trong
+      'lương hưu' không bị khớp nhầm sang các điều luật về 'trả lương' (Điều 94).
+    - Giữ lại các con số (như '36', '2019', '12', '169') để tìm chính xác số Điều/Khoản.
+    - Tạo thêm cụm 2 từ liền kề (bigrams) từ các từ gốc để bắt trúng từ ghép tiếng Việt.
     """
     if not text:
         return []
-    words = [w.lower() for w in RE_WORD_TOKEN.findall(text)]
+
+    # Bước 1: Tách từ gốc để tạo bigrams tự nhiên
+    raw_words = [w.lower() for w in re.findall(r"[0-9a-zA-ZÀ-ỹ]+", text)]
+    bigrams = [f"{raw_words[i]}_{raw_words[i + 1]}" for i in range(len(raw_words) - 1)]
+
+    # Nếu trong câu là "nhận lương hưu", loại bỏ bigram gây nhiễu "nhận_lương"
+    for i in range(len(raw_words) - 2):
+        if raw_words[i + 1] == "lương" and raw_words[i + 2] == "hưu":
+            bad_bg = f"{raw_words[i]}_lương"
+            bigrams = [b for b in bigrams if b != bad_bg]
+
+    # Bước 2: Gom cụm đặc biệt ("lương hưu" -> "lương_hưu") trước khi lấy unigrams
+    processed = text.lower()
+    for pattern, repl in COMPOUND_REPLACEMENTS:
+        processed = pattern.sub(repl, processed)
+
+    words = [w.lower() for w in RE_WORD_TOKEN.findall(processed)]
     if remove_stopwords:
         unigrams = [w for w in words if w not in VI_STOPWORDS]
     else:
         unigrams = list(words)
 
-    # Tạo thêm cụm 2 từ liền nhau (bigram) từ chuỗi gốc để BM25 bắt trúng từ ghép
-    # Ví dụ: ["thử", "việc"] -> thêm "thử_việc"
-    bigrams = [f"{words[i]}_{words[i + 1]}" for i in range(len(words) - 1)]
     return unigrams + bigrams
 
 
@@ -137,6 +160,32 @@ def normalize_vectors(matrix: np.ndarray) -> np.ndarray:
     return (arr / norms).astype(np.float32)
 
 
+_SHARED_EMBED_CLIENT = None
+
+
+def get_embed_client(api_key: str | None = None):
+    """Khởi tạo Gemini Client 1 lần duy nhất (Singleton) để tái sử dụng kết nối HTTPS."""
+    global _SHARED_EMBED_CLIENT
+    if api_key is not None or _SHARED_EMBED_CLIENT is None:
+        key = api_key or os.getenv("GEMINI_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "Thiếu GEMINI_API_KEY. Hãy kiểm tra file .env ở thư mục gốc dự án."
+            )
+        from google import genai
+        from google.genai import types
+
+        http_opts = types.HttpOptions(
+            timeout=10000,
+            retry_options=types.HttpRetryOptions(attempts=1),
+        )
+        client = genai.Client(api_key=key, http_options=http_opts)
+        if api_key is None:
+            _SHARED_EMBED_CLIENT = client
+        return client
+    return _SHARED_EMBED_CLIENT
+
+
 def embed_texts(
     texts: list[str],
     model: str = DEFAULT_EMBED_MODEL,
@@ -152,13 +201,7 @@ def embed_texts(
         raise ValueError("Danh sách văn bản cần tạo embedding không được rỗng.")
 
     if client is None:
-        key = api_key or os.getenv("GEMINI_API_KEY")
-        if not key:
-            raise RuntimeError(
-                "Thiếu GEMINI_API_KEY. Hãy kiểm tra file .env ở thư mục gốc dự án."
-            )
-        from google import genai
-        client = genai.Client(api_key=key)
+        client = get_embed_client(api_key=api_key)
 
     all_vectors: list[list[float]] = []
 

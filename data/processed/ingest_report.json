@@ -1,0 +1,67 @@
+{
+  "ingested_laws": [
+    {
+      "filename": "luatLaoDong2019.docx",
+      "doc_id": "45/2019/QH14",
+      "law_name": "Bộ luật Lao động 2019",
+      "effective_date": "2021-01-01",
+      "chapters_count": 17,
+      "articles_count": 220,
+      "chunks_count": 258
+    }
+  ],
+  "pending_laws_to_provide": [
+    {
+      "filename": "luatBaoHiemXaHoi2024.docx",
+      "expected_path": "C:\\Users\\NgocBich\\rag-luat-lao-dong\\data\\raw\\luatBaoHiemXaHoi2024.docx",
+      "doc_id": "41/2024/QH15",
+      "law_name": "Luật Bảo hiểm xã hội 2024",
+      "description": "Luật Bảo hiểm xã hội số 41/2024/QH15 (quy định chi tiết điều kiện hưởng lương hưu, chế độ thai sản, ốm đau, BHXH một lần)"
+    },
+    {
+      "filename": "nghiDinh145_2020.docx",
+      "expected_path": "C:\\Users\\NgocBich\\rag-luat-lao-dong\\data\\raw\\nghiDinh145_2020.docx",
+      "doc_id": "145/2020/NĐ-CP",
+      "law_name": "Nghị định 145/2020/NĐ-CP 2020",
+      "description": "Nghị định 145/2020/NĐ-CP quy định chi tiết và hướng dẫn thi hành Bộ luật Lao động về điều kiện lao động và quan hệ lao động"
+    }
+  ],
+  "quality_check": {
+    "total_chunks": 258,
+    "total_articles": 220,
+    "min_chars_threshold": 50,
+    "short_chunks_count": 0,
+    "short_chunks": [],
+    "missing_metadata_count": 0,
+    "missing_metadata": [],
+    "special_checks": {
+      "dieu_46": {
+        "ok": true,
+        "chunks_count": 1,
+        "char_length": 998,
+        "clause_nos": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "preview": "1. Khi hợp đồng lao động chấm dứt theo quy định tại các khoản 1, 2, 3, 4, 6, 7, 9 và 10 Điều 34 của Bộ luật này thì người sử dụng lao động có trách nhiệm trả trợ cấp thôi việc cho người lao động đã làm việc thường xuyên cho mình từ đủ 12 tháng trở lê..."
+      },
+      "dieu_169": {
+        "ok": true,
+        "chunks_count": 1,
+        "char_length": 1302,
+        "clause_nos": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "preview": "1. Người lao động bảo đảm điều kiện về thời gian đóng bảo hiểm xã hội theo quy định của pháp luật về bảo hiểm xã hội được hưởng lương hưu khi đủ tuổi nghỉ hưu.\n2. Tuổi nghỉ hưu của người lao động trong điều kiện lao động bình thường được điều chỉnh t..."
+      }
+    },
+    "ok": true
+  },
+  "ok": true
+}
