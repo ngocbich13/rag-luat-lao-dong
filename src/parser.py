@@ -130,7 +130,7 @@ def clean_line(raw: str) -> tuple[str, list[int]]:
 
     # 2. Ký tự đặc biệt: \xa0 (khoảng trắng cứng) -> khoảng trắng thường;
     #    các ký tự vô hình (zero-width, BOM) -> xóa bỏ
-    s = s.replace("\xa0", " ").replace(" ", " ")
+    s = s.replace("\xa0", " ").replace("\u2028", " ")
     s = s.replace("​", "").replace("﻿", "")
 
     # 3. Gỡ dấu chú thích, nhưng GHI LẠI số chú thích để không mất dấu
@@ -249,6 +249,7 @@ def build_tree(body: list[dict]) -> tuple[dict, list[str]]:
     chapter = section = article = clause = point = None
     waiting_chapter_title = False      # vừa gặp "Chương X", dòng kế là tên chương
     in_quote = False                   # đang ở trong đoạn trích dẫn “ ... ”
+    quote_node = None                  # nút (Điểm/Khoản/Điều) đã mở đoạn trích dẫn
 
     def touch(n: int, marks: list[int]) -> None:
         """Cập nhật dòng cuối + số chú thích cho mọi nút đang mở."""
@@ -301,7 +302,10 @@ def build_tree(body: list[dict]) -> tuple[dict, list[str]]:
             if article is None:
                 warnings.append(f"Dòng {n}: trích dẫn nhưng chưa có Điều")
             else:
-                append_text(continuation_target(), text)
+                # Cả đoạn trích dẫn thuộc về nút đã mở nó. Không dùng continuation_target()
+                # vì một dòng trong đoạn trích kết thúc bằng ";" sẽ khiến các dòng sau
+                # bị gắn nhầm sang Khoản.
+                append_text(quote_node, text)
                 touch(n, marks)
             if _closes_quote(text):
                 in_quote = False
@@ -366,11 +370,13 @@ def build_tree(body: list[dict]) -> tuple[dict, list[str]]:
             if article is None:
                 warnings.append(f"Dòng {n}: dòng lẻ ngoài Điều: {text[:50]}")
                 continue
-            append_text(continuation_target(), text)
+            target = continuation_target()
+            append_text(target, text)
             touch(n, marks)
             # Mở đầu một đoạn trích dẫn nhiều dòng: “... (chưa đóng ”)
             if text.startswith("“") and not _closes_quote(text):
                 in_quote = True
+                quote_node = target          # ghi nhớ nút chứa đoạn trích
 
     if in_quote:
         warnings.append("Đoạn trích dẫn “ ... ” không được đóng ở cuối văn bản")
@@ -391,20 +397,19 @@ def extract_document_info(preamble: list[dict], tables: list[dict]) -> dict:
             "effective_date": None, "consolidated_no": None,
             "consolidated_date": None}
 
-    # Dòng kiểu: "Bộ luật Lao động số 45/2019/QH14 ngày 20 tháng 11 năm 2019 ...
-    #             có hiệu lực kể từ ngày 01 tháng 01 năm 2021, ..."
-    pat = re.compile(
-        r"^(.+?)\s+số\s+(\S+)\s+ngày\s+(\d+)\s+tháng\s+(\d+)\s+năm\s+(\d+).*?"
-        r"hiệu lực kể từ ngày\s+(\d+)\s+tháng\s+(\d+)\s+năm\s+(\d+)"
-    )
-    for p in preamble:
-        m = pat.match(p["text"])
-        if m:
-            info["title"] = m.group(1)
-            info["doc_id"] = m.group(2)
-            info["issued_date"] = _iso_date(m.group(3), m.group(4), m.group(5))
-            info["effective_date"] = _iso_date(m.group(6), m.group(7), m.group(8))
-            break
+    # Tìm trong TOÀN BỘ phần mở đầu (gộp lại), không phụ thuộc việc Word tách đoạn thế nào.
+    # Ví dụ: "Bộ luật Lao động số 45/2019/QH14 ngày 20 tháng 11 năm 2019 của Quốc hội,
+    #         có hiệu lực kể từ ngày 01 tháng 01 năm 2021, được sửa đổi, bổ sung bởi: ..."
+    text = " ".join(p["text"] for p in preamble)
+    m = re.search(r"(Bộ luật [^\d]+?)\s+số\s+(\d+/\d{4}/[A-ZĐ0-9]+)"
+                  r"\s+ngày\s+(\d+)\s+tháng\s+(\d+)\s+năm\s+(\d+)", text)
+    if m:
+        info["title"] = m.group(1).strip()
+        info["doc_id"] = m.group(2)
+        info["issued_date"] = _iso_date(m.group(3), m.group(4), m.group(5))
+    m = re.search(r"hiệu lực kể từ ngày\s+(\d+)\s+tháng\s+(\d+)\s+năm\s+(\d+)", text)
+    if m:
+        info["effective_date"] = _iso_date(*m.groups())
 
     # Bảng đầu file: "Số: 18/VBHN-VPQH" và "Hà Nội, ngày 12 tháng 02 năm 2026"
     if tables:
@@ -509,6 +514,11 @@ def validate(doc: dict, body: list[dict], build_warnings: list[str]) -> dict:
     warnings: list[str] = list(build_warnings)
     chapters = doc["chapters"]
     articles = [a for ch in chapters for a in ch["articles"]]
+
+    # --- 0. Metadata văn bản phải đầy đủ (thiếu thì Giai đoạn 2 và 3 sẽ hỏng) ---
+    for key in ("doc_id", "title", "issued_date", "effective_date"):
+        if not doc.get(key):
+            errors.append(f"Thiếu metadata '{key}': không trích được từ phần mở đầu của file")
 
     # --- 1. Chương: số La Mã phải liên tục 1..N ---
     nums = [roman_to_int(ch["chapter_no"]) for ch in chapters]

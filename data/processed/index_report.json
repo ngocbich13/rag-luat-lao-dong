@@ -1,0 +1,12 @@
+{
+  "counts": {
+    "chunks": 258,
+    "vectors": 258,
+    "dimensions": 3072,
+    "quoted_other_law": 8
+  },
+  "errors": [],
+  "ok": true,
+  "model": "gemini-embedding-001",
+  "elapsed_seconds": 168.47
+}

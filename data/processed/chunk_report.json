@@ -1,0 +1,25 @@
+{
+  "counts": {
+    "chunks": 258,
+    "articles": 220,
+    "articles_split": 27,
+    "by_level": {
+      "article": 193,
+      "clauses": 53,
+      "points": 3,
+      "window": 9
+    },
+    "with_references": 64,
+    "quoted_other_law": 8
+  },
+  "words": {
+    "min": 14,
+    "median": 142.5,
+    "p90": 265,
+    "max": 297,
+    "limit": 300
+  },
+  "errors": [],
+  "warnings": [],
+  "ok": true
+}

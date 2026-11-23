@@ -149,3 +149,33 @@ def test_muc_va_duong_dan(result):
 def test_xuat_du_file(result):
     for path in result["paths"].values():
         assert path.exists() and path.stat().st_size > 0
+
+
+@needs_raw
+def test_dieu_219_doan_trich_gan_dung_diem(result):
+    """Mỗi đoạn trích dẫn phải nằm trong ĐÚNG Điểm đã mở nó, không dồn vào Khoản."""
+    k1 = _articles(result["doc"])[219]["clauses"][0]
+    assert len(k1["points"]) == 3
+    assert "“Điều 54." in k1["points"][0]["text"]
+    assert "“Điều 55." in k1["points"][1]["text"]
+    assert "Điều 73" in k1["points"][2]["text"] and "“1. Người lao động hưởng lương hưu" in k1["points"][2]["text"]
+    assert "“" not in k1["text"]               # câu dẫn của Khoản không chứa đoạn trích
+    k2 = _articles(result["doc"])[219]["clauses"][1]
+    assert "“Điều 32." in k2["points"][0]["text"]
+    assert "Bãi bỏ khoản 2 Điều 32" in k2["points"][1]["text"]
+
+
+def test_metadata_khi_word_tach_doan_khac_di():
+    """Số hiệu và ngày hiệu lực nằm ở 2 đoạn khác nhau vẫn phải trích được."""
+    pre = [{"line_no": 1, "text": "Bộ luật Lao động số 45/2019/QH14 ngày 20 tháng 11 năm 2019 của Quốc hội,"},
+           {"line_no": 2, "text": "có hiệu lực kể từ ngày 01 tháng 01 năm 2021, được sửa đổi bổ sung bởi:"}]
+    info = p.extract_document_info(pre, [])
+    assert info["doc_id"] == "45/2019/QH14" and info["title"] == "Bộ luật Lao động"
+    assert info["issued_date"] == "2019-11-20" and info["effective_date"] == "2021-01-01"
+
+
+def test_validate_bao_loi_khi_thieu_metadata():
+    doc = {"doc_id": None, "title": None, "issued_date": None, "effective_date": None,
+           "preamble": [], "chapters": []}
+    rep = p.validate(doc, [], [])
+    assert not rep["ok"] and any("doc_id" in e for e in rep["errors"])
